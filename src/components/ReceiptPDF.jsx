@@ -244,79 +244,155 @@ const styles = StyleSheet.create({
   },
 });
 
-// Function to calculate smart fare breakdown based on trip characteristics
+// Function to calculate realistic Uber India rental fare breakdown with multiple packages
 const calculateUberFareBreakdown = (totalFare, tripStats) => {
   const distance = parseFloat(tripStats.distance);
   const duration = parseInt(tripStats.duration);
   
-  // For rental package fare logic (7hr/60km base package)
-  const packageDuration = 7 * 60; // 7 hours in minutes  
-  const packageDistance = 60; // 60 km
+  // Uber India rental packages (realistic options)
+  const packages = [
+    { hours: 1, km: 10, name: "1hr/10km" },
+    { hours: 2, km: 20, name: "2hr/20km" },
+    { hours: 4, km: 40, name: "4hr/40km" },
+    { hours: 6, km: 60, name: "6hr/60km" },
+    { hours: 8, km: 80, name: "8hr/80km" },
+    { hours: 12, km: 120, name: "12hr/120km" }
+  ];
   
-  // Determine if additional charges should be applied
-  // Only show additional charges if fare exceeds Rs 2000 and user exceeded package limits
-  const shouldShowAdditional = totalFare > 2000;
-  const exceededTime = duration > packageDuration;
-  const exceededDistance = distance > packageDistance;
+  // Smart package selection based on trip characteristics and total fare
+  let selectedPackage;
+  const tripHours = duration / 60;
+  
+  // Find the best matching package based on actual usage and fare
+  if (totalFare <= 800) {
+    // Small fares: 1-2hr packages
+    selectedPackage = tripHours <= 1.5 ? packages[0] : packages[1];
+  } else if (totalFare <= 1500) {
+    // Medium fares: 2-4hr packages  
+    selectedPackage = tripHours <= 3 ? packages[1] : packages[2];
+  } else if (totalFare <= 2500) {
+    // Large fares: 4-6hr packages
+    selectedPackage = tripHours <= 5 ? packages[2] : packages[3];
+  } else if (totalFare <= 4000) {
+    // Very large fares: 6-8hr packages
+    selectedPackage = tripHours <= 7 ? packages[3] : packages[4];
+  } else {
+    // Premium fares: 8-12hr packages
+    selectedPackage = tripHours <= 10 ? packages[4] : packages[5];
+  }
+  
+  const packageDuration = selectedPackage.hours * 60; // in minutes
+  const packageDistance = selectedPackage.km; // in km
+  
+  // Uber India rental rates (realistic)
+  const extraDistanceRate = 11.0; // Rs 11 per km
+  const extraTimeRate = 2.5; // Rs 2.5 per minute
+  
+  // Check if limits exceeded
+  const exceededDistance = distance > packageDistance ? distance - packageDistance : 0;
+  const exceededTime = duration > packageDuration ? duration - packageDuration : 0;
   
   let breakdown = {};
+  breakdown.packageName = selectedPackage.name;
   
-  if (shouldShowAdditional && (exceededTime || exceededDistance)) {
-    // Calculate base package fare - when additional charges apply, Uber fees are ~40%
-    breakdown.packageFare = Math.round(totalFare * 0.35); // Smaller base package
-    breakdown.uberFees = Math.round(totalFare * 0.40); // 40% Uber fees
-    
-    // Add additional charges only if limits exceeded
-    if (exceededDistance) {
-      const extraDistance = distance - packageDistance;
-      breakdown.distanceCharges = Math.round(extraDistance * 11.0); // Rs 11 per extra km
-      breakdown.showDistance = true;
-      breakdown.extraDistance = extraDistance.toFixed(1);
-    } else {
-      breakdown.showDistance = false;
-    }
-    
-    if (exceededTime) {
-      const extraTime = duration - packageDuration;
-      breakdown.timeCharges = Math.round(extraTime * 2.5); // Rs 2.5 per extra minute
-      breakdown.showTime = true;
-      breakdown.extraTime = Math.round(extraTime);
-    } else {
-      breakdown.showTime = false;
-    }
-    
+  // Calculate additional charges first (if any)
+  let additionalCharges = 0;
+  
+  if (exceededDistance > 0) {
+    breakdown.distanceCharges = Math.round(exceededDistance * extraDistanceRate);
+    breakdown.showDistance = true;
+    breakdown.extraDistance = exceededDistance.toFixed(1);
+    additionalCharges += breakdown.distanceCharges;
   } else {
-    // For regular trips or lower fares - Uber fees are ~50-60%
-    breakdown.packageFare = Math.round(totalFare * 0.45); // Base package
-    breakdown.uberFees = Math.round(totalFare * 0.50); // 50% Uber fees
     breakdown.showDistance = false;
+    breakdown.distanceCharges = 0;
+  }
+  
+  if (exceededTime > 0) {
+    breakdown.timeCharges = Math.round(exceededTime * extraTimeRate);
+    breakdown.showTime = true;
+    breakdown.extraTime = Math.round(exceededTime);
+    additionalCharges += breakdown.timeCharges;
+  } else {
     breakdown.showTime = false;
+    breakdown.timeCharges = 0;
+  }
+  
+  // Calculate base fare (total - additional charges)
+  const baseFare = totalFare - additionalCharges;
+  
+  // Apply your specified ratios
+  let packageFareRatio, uberFeeRatio;
+  
+  if (additionalCharges > 0) {
+    // When additional charges exist: Package 50-55%, Uber 30-40%
+    if (baseFare <= 1500) {
+      packageFareRatio = 0.55; // 55%
+      uberFeeRatio = 0.40; // 40%
+    } else if (baseFare <= 3000) {
+      packageFareRatio = 0.53; // 53%
+      uberFeeRatio = 0.37; // 37%
+    } else {
+      packageFareRatio = 0.50; // 50%
+      uberFeeRatio = 0.35; // 35%
+    }
+  } else {
+    // No additional charges: Package 55-65%, Uber 35-45%
+    if (baseFare <= 1000) {
+      packageFareRatio = 0.65; // 65%
+      uberFeeRatio = 0.35; // 35%
+    } else if (baseFare <= 2500) {
+      packageFareRatio = 0.60; // 60%
+      uberFeeRatio = 0.40; // 40%
+    } else {
+      packageFareRatio = 0.55; // 55%
+      uberFeeRatio = 0.45; // 45%
+    }
+  }
+  
+  // Calculate package fare and Uber fees
+  breakdown.packageFare = Math.round(baseFare * packageFareRatio);
+  breakdown.uberFees = Math.round(baseFare * uberFeeRatio);
+  
+  // Ensure total matches by adjusting package fare
+  const calculatedBaseFare = breakdown.packageFare + breakdown.uberFees;
+  const baseFareAdjustment = baseFare - calculatedBaseFare;
+  breakdown.packageFare += baseFareAdjustment;
+  
+  // Safety check: ensure minimum values
+  if (breakdown.packageFare < 200) {
+    const deficit = 200 - breakdown.packageFare;
+    breakdown.packageFare = 200;
+    breakdown.uberFees = Math.max(100, breakdown.uberFees - deficit);
   }
   
   // Calculate subtotal before credits
-  const subtotalBeforeCredits = (breakdown.distanceCharges || 0) + 
-                                (breakdown.timeCharges || 0) + 
-                                breakdown.packageFare + 
-                                breakdown.uberFees;
+  const subtotalBeforeCredits = breakdown.packageFare + breakdown.uberFees + additionalCharges;
   
-  // Apply Uber One Credits (small amount - typically Rs 5-40)
-  const uberOneCredits = Math.min(40, Math.max(5, Math.round(totalFare * 0.03))); // 3% credit, min Rs 5, max Rs 40
+  // Apply Uber One Credits (realistic: 1.5-3% of total, min Rs 5, max Rs 60)
+  let creditPercentage;
+  if (totalFare <= 1000) creditPercentage = 0.015; // 1.5%
+  else if (totalFare <= 2500) creditPercentage = 0.02; // 2%
+  else if (totalFare <= 5000) creditPercentage = 0.025; // 2.5%
+  else creditPercentage = 0.03; // 3%
+  
+  const uberOneCredits = Math.min(60, Math.max(5, Math.round(totalFare * creditPercentage)));
   
   const subtotalAfterCredits = subtotalBeforeCredits - uberOneCredits;
   
-  // Calculate GST (18%)
+  // Calculate GST (18% in India)
   const gstAmount = Math.round(subtotalAfterCredits * 0.18);
   
-  // Adjust package fare to match exact total
+  // Final adjustment to match exact total
   const calculatedTotal = subtotalAfterCredits + gstAmount;
-  const adjustment = totalFare - calculatedTotal;
-  breakdown.packageFare += adjustment;
+  const finalAdjustment = totalFare - calculatedTotal;
+  breakdown.packageFare += finalAdjustment;
   
   return {
     ...breakdown,
-    subtotalBeforeCredits: subtotalBeforeCredits + adjustment,
+    subtotalBeforeCredits: breakdown.packageFare + breakdown.uberFees + additionalCharges,
     uberOneCredits,
-    subtotalAfterCredits: subtotalAfterCredits + adjustment,
+    subtotalAfterCredits: breakdown.packageFare + breakdown.uberFees + additionalCharges - uberOneCredits,
     gstAmount,
     total: totalFare
   };
@@ -418,7 +494,7 @@ const UberReceiptPDF = ({ receiptData }) => {
             </View>
           )}
           <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Package fare (7hr/60km)</Text>
+            <Text style={styles.breakdownLabel}>Package fare ({fareBreakdown.packageName})</Text>
             <Text style={styles.breakdownAmount}>{formatCurrency(fareBreakdown.packageFare)}</Text>
           </View>
           <View style={styles.breakdownRow}>
