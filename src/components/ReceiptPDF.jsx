@@ -51,12 +51,12 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     color: '#000000',
   },
   totalAmount: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: 'normal',
     color: '#000000',
   },
   breakdownSection: {
@@ -101,12 +101,12 @@ const styles = StyleSheet.create({
   subtotalAmount: {
     fontSize: 10,
     color: '#333333',
-    fontWeight: 'bold',
+    fontWeight: 'normal',
   },
   creditAmount: {
     fontSize: 10,
     color: '#4CAF50',
-    fontWeight: 'bold',
+    fontWeight: 'normal',
   },
   paymentsSection: {
     marginTop: 20,
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   },
   paymentsTitle: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     color: '#000000',
     marginBottom: 12,
   },
@@ -129,14 +129,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cashIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     marginRight: 8,
   },
   cashText: {
     fontSize: 10,
     color: '#000000',
-    fontWeight: 'bold',
+    fontWeight: 'normal',
   },
   paymentTime: {
     fontSize: 9,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   paymentAmount: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     color: '#000000',
   },
   convenienceText: {
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#333333',
     marginBottom: 15,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
   },
   tripSection: {
     marginBottom: 15,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   rideWithText: {
     fontSize: 10,
     color: '#333333',
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     marginBottom: 4,
   },
   licenseText: {
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   },
   routeTime: {
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     color: '#000000',
     minWidth: 60,
     marginRight: 12,
@@ -299,9 +299,20 @@ const calculateUberFareBreakdown = (totalFare, tripStats) => {
   let additionalCharges = 0;
   
   if (exceededDistance > 0) {
-    breakdown.distanceCharges = Math.round(exceededDistance * extraDistanceRate);
+    // Calculate additional distance charges with 10% cap
+    const maxDistanceCharges = Math.round(totalFare * 0.10); // Max 10% of total fare
+    const calculatedDistanceCharges = Math.round(exceededDistance * extraDistanceRate);
+    
+    breakdown.distanceCharges = Math.min(maxDistanceCharges, calculatedDistanceCharges);
     breakdown.showDistance = true;
-    breakdown.extraDistance = exceededDistance.toFixed(1);
+    
+    // Adjust the displayed extra distance to match the capped charges
+    if (breakdown.distanceCharges < calculatedDistanceCharges) {
+      breakdown.extraDistance = (breakdown.distanceCharges / extraDistanceRate).toFixed(1);
+    } else {
+      breakdown.extraDistance = exceededDistance.toFixed(1);
+    }
+    
     additionalCharges += breakdown.distanceCharges;
   } else {
     breakdown.showDistance = false;
@@ -474,7 +485,7 @@ const UberReceiptPDF = ({ receiptData }) => {
         {/* Total */}
         <View style={styles.totalSection}>
           <Text style={styles.totalLabel}>Total</Text>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000000' }}>
+          <Text style={{ fontSize: 16, fontWeight: 'normal', color: '#000000' }}>
             Rs {(receiptData.totalFare || 0).toFixed(2)}
           </Text>
         </View>
@@ -526,14 +537,14 @@ const UberReceiptPDF = ({ receiptData }) => {
             <View style={styles.paymentMethod}>
               <Image 
                 style={styles.cashIcon}
-                src="src/assets/Cash-icon.png"
+                src="src/assets/Cash-icon2.png"
               />
               <View>
                 <Text style={styles.cashText}>Cash</Text>
-                <Text style={styles.paymentTime}>{receiptData.date || new Date().toISOString().split('T')[0]} {formatDisplayTime(receiptData.dropoffTime)}</Text>
+                <Text style={styles.paymentTime}>{receiptData.date ? new Date(receiptData.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' })} {formatDisplayTime(receiptData.dropoffTime)}</Text>
               </View>
             </View>
-            <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#000000' }}>
+            <Text style={{ fontSize: 14, fontWeight: 'normal', color: '#000000' }}>
               Rs {(receiptData.totalFare || 0).toFixed(2)}
             </Text>
           </View>
